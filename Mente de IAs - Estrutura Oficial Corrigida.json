@@ -1,0 +1,459 @@
+{
+  "name": "Mente de IAs - Estrutura Oficial Corrigida",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "orbit-chat",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.2,
+      "position": [
+        2624,
+        880
+      ],
+      "id": "5bcec3df-4eb7-4ca0-bcce-f3c3809c0597",
+      "name": "Webhook",
+      "webhookId": "943a6eb5-04ce-49e6-858c-d79dc091e7e1"
+    },
+    {
+      "parameters": {
+        "model": "meta-llama/llama-3.3-70b-instruct:free",
+        "options": {
+          "baseURL": "https://openrouter.ai/api/v1",
+          "temperature": 0.2
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1,
+      "position": [
+        2736,
+        1104
+      ],
+      "id": "f44898c5-9179-404b-8ef4-ea876479c106",
+      "name": "Llama 3.3 70B (Main Model)",
+      "credentials": {
+        "openAiApi": {
+          "id": "YQKEBNF1Wc7MtUzP",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        2864,
+        1104
+      ],
+      "id": "5ca578ee-1a1b-4328-abb1-16fa27dd6e34",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "model": "meta-llama/llama-3.3-70b-instruct:free",
+        "options": {
+          "baseURL": "https://openrouter.ai/api/v1",
+          "temperature": 0.2
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1,
+      "position": [
+        3024,
+        1264
+      ],
+      "id": "5bf0efa2-7153-4ba9-b03f-6ad322769ec3",
+      "name": "Llama 3.3 70B (Docs Model)",
+      "credentials": {
+        "openAiApi": {
+          "id": "YQKEBNF1Wc7MtUzP",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        3120,
+        1264
+      ],
+      "id": "62956e16-09f2-4cda-a6d7-0966c0728103",
+      "name": "Simple Memory Docs"
+    },
+    {
+      "parameters": {
+        "model": "qwen/qwen-2.5-coder-32b-instruct:free",
+        "options": {
+          "baseURL": "https://openrouter.ai/api/v1",
+          "temperature": 0.2
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1,
+      "position": [
+        3344,
+        1104
+      ],
+      "id": "8667fa41-3e1b-4f76-974b-8ee2f41f351d",
+      "name": "Qwen 2.5 Coder Free",
+      "credentials": {
+        "openAiApi": {
+          "id": "YQKEBNF1Wc7MtUzP",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        3440,
+        1136
+      ],
+      "id": "e632f0af-279b-4d14-90c4-0524093d9914",
+      "name": "Simple Memory Code"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.output }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        3216,
+        720
+      ],
+      "id": "8957b0cc-f3ec-4685-b464-f1090e433156",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agentTool",
+      "typeVersion": 3,
+      "position": [
+        3024,
+        1088
+      ],
+      "id": "638b5aca-27ef-4a62-9135-21629e053188",
+      "name": "AI Agent Tool"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.body.message }}",
+        "options": {
+          "systemMessage": "Você é o ORQUESTRADOR CENTRAL (Mente Mestra).\n\nSua função é analisar as solicitações do usuário e delegar para os sub-agentes especialistas disponíveis:\n1. 'agente_workspace_docs': Para criar, ler, buscar ou editar arquivos no Google Docs e tarefas do Google Workspace.\n2. 'agente_dev_codigo': Para criar scripts, refatorar código, corrigir bugs ou responder dúvidas de programação.\n\nReceba os resultados dos sub-agentes e entregue a resposta final em Português do Brasil com formatação limpa em Markdown."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        2864,
+        880
+      ],
+      "id": "4a8d9980-1354-4b2b-8faf-dca2c65987f8",
+      "name": "AI Agent (Orquestrador)"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agentTool",
+      "typeVersion": 3,
+      "position": [
+        3344,
+        912
+      ],
+      "id": "88496f5b-a5b3-4023-9753-54ee06c327ed",
+      "name": "AI Agent Tool1"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.googleDocsTool",
+      "typeVersion": 2,
+      "position": [
+        3232,
+        1344
+      ],
+      "id": "2401c340-cb92-4ff1-a142-f271275a8e37",
+      "name": "Create a document in Google Docs"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmailTool",
+      "typeVersion": 2.2,
+      "position": [
+        3328,
+        1297.3403141361255
+      ],
+      "id": "11356540-02b3-4c9d-84b7-7c95b8009b0f",
+      "name": "Send a message in Gmail",
+      "webhookId": "546a93eb-8127-469d-b0ac-211460ecaebd"
+    },
+    {
+      "parameters": {
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "root",
+          "cachedResultName": "/ (Root folder)"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDriveTool",
+      "typeVersion": 3,
+      "position": [
+        3328,
+        1297.3403141361255
+      ],
+      "id": "c0e342aa-98d0-4de1-ac92-2e1f43f6d02f",
+      "name": "Upload file in Google Drive"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gitTool",
+      "typeVersion": 1.1,
+      "position": [
+        3552,
+        1168
+      ],
+      "id": "01ff9477-8fcc-464d-99b5-ee204d65bb3d",
+      "name": "Git"
+    },
+    {
+      "parameters": {
+        "owner": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "repository": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "labels": [],
+        "assignees": []
+      },
+      "type": "n8n-nodes-base.githubTool",
+      "typeVersion": 1.1,
+      "position": [
+        3648,
+        1168
+      ],
+      "id": "e753bf12-f7fe-4d26-abb6-ed5b90556163",
+      "name": "Create an issue in GitHub",
+      "webhookId": "bc6897fd-0f08-407d-8622-991c913f78d4"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "AI Agent (Orquestrador)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Llama 3.3 70B (Main Model)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent (Orquestrador)",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent (Orquestrador)",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Llama 3.3 70B (Docs Model)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent Tool",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory Docs": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent Tool",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qwen 2.5 Coder Free": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent Tool1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory Code": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent Tool1",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent (Orquestrador)",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent (Orquestrador)": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent Tool1": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent (Orquestrador)",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a document in Google Docs": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent Tool",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a message in Gmail": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent Tool",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload file in Google Drive": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent Tool",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Git": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent Tool1",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create an issue in GitHub": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent Tool1",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "a58e6c10-2e8c-4444-b6fc-7a88f3fe9b8c",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "4f581d806676cdc725db2ecc2b526b66984be2627649a96660fe8251056b958c"
+  },
+  "nodeGroups": [],
+  "id": "PUNWW78jcDjXQRG1",
+  "tags": []
+}
