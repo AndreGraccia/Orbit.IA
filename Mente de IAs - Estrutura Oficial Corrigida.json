@@ -6,7 +6,9 @@
         "httpMethod": "POST",
         "path": "orbit-chat",
         "responseMode": "responseNode",
-        "options": {}
+        "options": {
+          "allowedOrigins": "http://localhost:5173,http://127.0.0.1:5173"
+        }
       },
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.2,
@@ -126,12 +128,7 @@
         "responseBody": "={{ $json.output }}",
         "options": {
           "responseHeaders": {
-            "entries": [
-              {
-                "name": "Access-Control-Allow-Origin",
-                "value": "*"
-              }
-            ]
+            "entries": []
           }
         }
       },
@@ -160,7 +157,7 @@
     {
       "parameters": {
         "promptType": "define",
-        "text": "={{ $json.body.message }}",
+        "text": "={{ $json.body.message || $json.body.chatInput || $json.message || $json.chatInput || '' }}",
         "options": {
           "systemMessage": "Você é o ORQUESTRADOR CENTRAL (Mente Mestra).\n\nSua função é analisar as solicitações do usuário e delegar para os sub-agentes especialistas disponíveis:\n1. 'agente_workspace_docs': Para criar, ler, buscar ou editar arquivos no Google Docs e tarefas do Google Workspace.\n2. 'agente_dev_codigo': Para criar scripts, refatorar código, corrigir bugs ou responder dúvidas de programação.\n\nReceba os resultados dos sub-agentes e entregue a resposta final em Português do Brasil com formatação limpa em Markdown."
         }
