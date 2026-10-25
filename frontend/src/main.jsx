@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
   Activity, ArrowDownLeft, ArrowUpRight, Bot, BrainCircuit, Check, ChevronDown,
@@ -10,6 +10,29 @@ import './styles.css';
 
 const webhookUrl = import.meta.env.VITE_N8N_WEBHOOK_URL || '';
 const demoMode = (import.meta.env.VITE_DEMO_MODE ?? 'true') === 'true';
+
+function extractAssistantText(raw, contentType = '') {
+  if (typeof raw !== 'string') return '';
+  const trimmed = raw.trim();
+  if (!trimmed) return '';
+
+  const looksLikeJson = contentType.includes('application/json') ||
+    trimmed.startsWith('{') || trimmed.startsWith('[');
+  if (looksLikeJson) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (typeof parsed === 'string') return parsed;
+      if (typeof parsed.output === 'string') return parsed.output;
+      if (typeof parsed.text === 'string') return parsed.text;
+      if (typeof parsed.response === 'string') return parsed.response;
+      if (typeof parsed.message === 'string') return parsed.message;
+      if (typeof parsed.data?.output === 'string') return parsed.data.output;
+    } catch {
+      // Preserve text if it is not valid JSON.
+    }
+  }
+  return raw;
+}
 
 const initialMessages = [{
   id: 1, role: 'assistant', time: 'Agora',
@@ -61,6 +84,11 @@ function App() {
   const [search, setSearch] = useState('');
   const [notice, setNotice] = useState('');
   const [connection, setConnection] = useState(webhookUrl ? 'configured' : 'demo');
+  const conversationEndRef = useRef(null);
+
+  useEffect(() => {
+    conversationEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [messages, busy]);
 
   const pageTitle = activeNav === 'assistant' ? 'Assistente' : activeNav === 'activity' ? 'Atividade' : activeNav === 'knowledge' ? 'Conhecimento' : 'Configurações';
   const filteredHistory = useMemo(() => history.filter(item => item.title.toLowerCase().includes(search.toLowerCase())), [history, search]);
@@ -90,50 +118,38 @@ function App() {
 
     try {
       if (webhookUrl) {
-        const response = await fetch(webhookUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: clean, chatInput: clean, source: 'orbit-frontend' })
-        });
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 120000);
+        let response;
+        let responseText;
+        try {
+          response = await fetch(webhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'text/plain, application/json' },
+            body: JSON.stringify({ message: clean, chatInput: clean, source: 'orbit-frontend' }),
+            signal: controller.signal
+          });
+          if (!response.ok) {
+            const errorBody = (await response.text()).slice(0, 300);
+            throw new Error(`O webhook respondeu HTTP ${response.status}${errorBody ? `: ${errorBody}` : ''}`);
+          }
+          responseText = await response.text();
+        } finally {
+          clearTimeout(timeoutId);
+        }
 
-        if (!response.ok) throw new Error(`O webhook respondeu HTTP ${response.status}`);
-
+        const answerText = extractAssistantText(responseText, response.headers.get('content-type') || '');
+        if (!answerText.trim()) {
+          throw new Error('O n8n respondeu sem conteúdo. Confira se o agente retorna o campo output.');
+        }
         setConnection('connected');
-
-        const assistantId = Date.now() + 1;
         setMessages(prev => [...prev, {
-          id: assistantId,
+          id: Date.now() + 1,
           role: 'assistant',
-          content: '',
+          content: answerText,
           intent: 'n8n',
           time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
         }]);
-
-        if (response.body) {
-          const reader = response.body.getReader();
-          const decoder = new TextDecoder('utf-8');
-
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            let chunk = decoder.decode(value, { stream: true });
-            
-            // Tratamento caso o n8n envie em formato JSON puro {"output":"..."}
-            if (chunk.includes('{"output":"')) {
-              try {
-                const parsed = JSON.parse(chunk);
-                chunk = parsed.output || chunk;
-              } catch (e) {
-                chunk = chunk.replace(/^{"output":"/, '').replace(/"}$/, '');
-              }
-            }
-
-            setMessages(prev => prev.map(msg => 
-              msg.id === assistantId ? { ...msg, content: msg.content + chunk } : msg
-            ));
-          }
-        }
       } else if (demoMode) {
         await new Promise(resolve => setTimeout(resolve, 650));
         const answer = demoAnswer(clean);
@@ -148,7 +164,8 @@ function App() {
         throw new Error('Configure VITE_N8N_WEBHOOK_URL no arquivo .env.');
       }
     } catch (error) {
-      setNotice(`${error.message}. Confira o webhook, o n8n e as configurações de CORS.`);
+      const errorMessage = error.name === 'AbortError' ? 'A solicitação excedeu o tempo limite de 120 segundos' : (error instanceof Error ? error.message : 'Erro desconhecido na comunicação com o n8n');
+      setNotice(`${errorMessage}. Confira o webhook, o n8n e as configurações de CORS.`);
       setMessages(prev => [...prev, {
         id: Date.now() + 2,
         role: 'assistant',
@@ -237,7 +254,7 @@ function App() {
                 <span className="breadcrumb-muted">Workspace</span><span className="breadcrumb-slash">/</span><span className="breadcrumb-current">{pageTitle}</span>
               </div>
               <div className="topbar-actions">
-                <div className={`connection-pill ${connection}`}><span className="status-dot"/>{connection === 'connected' ? 'n8n conectado' : connection === 'error' ? 'Falha na conexão' : 'Modo demonstração'}</div>
+                <div className={`connection-pill ${connection}`}><span className="status-dot"/>{connection === 'connected' ? 'n8n conectado' : connection === 'error' ? 'Falha na conexão' : connection === 'configured' ? 'n8n configurado' : 'Modo demonstração'}</div>
                 <button className="icon-btn" aria-label="Configurações" onClick={() => setSettingsOpen(true)}><Settings2 size={18}/></button>
                 <button className="help-btn" onClick={() => setNotice('Dica: configure o webhook do n8n no arquivo .env para conectar a IA.')}><CircleHelp size={16}/><span>Ajuda</span></button>
               </div>
@@ -288,7 +305,7 @@ function App() {
                       </div>
                     ))}
                     {busy && <div className="message-row assistant"><div className="message-avatar"><Sparkles size={15}/></div><div className="message-body"><div className="message-author">Orbit <span>agora</span></div><div className="typing"><i/><i/><i/><span>Gerando resposta...</span></div></div></div>}
-                    <div id="conversation-end"/>
+                    <div id="conversation-end" ref={conversationEndRef} />
                   </div>
                 )}
                 <div className={`composer-wrap ${messages.length > 1 ? 'composer-in-conversation' : ''}`}>
@@ -329,10 +346,10 @@ function App() {
               </section>
             )}
 
-            <footer className="app-footer"><span>ORBIT <span className="footer-separator">/</span> PERSONAL AI WORKSPACE</span><span><span className="footer-status"/>{connection === 'connected' ? 'Conectado ao n8n' : 'Executando em modo local'}</span><span className="footer-version">v0.1.0 · Preview</span></footer>
+            <footer className="app-footer"><span>ORBIT <span className="footer-separator">/</span> PERSONAL AI WORKSPACE</span><span><span className="footer-status"/>{connection === 'connected' ? 'Conectado ao n8n' : connection === 'configured' ? 'Webhook configurado' : 'Executando em modo demonstração'}</span><span className="footer-version">v0.1.0 · Preview</span></footer>
           </main>
         </div>
-        {settingsOpen && <div className="modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setSettingsOpen(false); }}><section className="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title"><div className="modal-header"><div><span className="section-eyebrow"><Settings2 size={13}/> PREFERÊNCIAS</span><h2 id="settings-title">Configurações do workspace</h2></div><button className="icon-btn" onClick={() => setSettingsOpen(false)} aria-label="Fechar configurações"><X size={18}/></button></div><div className="setting-row"><div className="setting-icon"><Workflow size={17}/></div><div className="setting-copy"><strong>Webhook do n8n</strong><span>{webhookUrl || 'Nenhuma URL configurada no .env'}</span></div><span className={`setting-state ${webhookUrl ? 'ok' : ''}`}>{webhookUrl ? 'CONFIGURADO' : 'DEMO'}</span></div><div className="setting-row"><div className="setting-icon"><BrainCircuit size={17}/></div><div className="setting-copy"><strong>Modelo de IA</strong><span>OpenRouter - Nvidia Nemotron 3.5 Free</span></div><span className="setting-state">OPENROUTER</span></div><div className="setting-row"><div className="setting-icon"><ShieldCheck size={17}/></div><div className="setting-copy"><strong>Modo de privacidade</strong><span>O frontend não salva conversas no servidor por padrão.</span></div><span className="setting-state ok">ATIVO</span></div><div className="modal-note"><CircleHelp size={16}/><p>Para conectar o agente, configure <code>VITE_N8N_WEBHOOK_URL</code> no arquivo <code>.env</code>, reinicie o frontend e configure o CORS no n8n para permitir a origem do frontend local.</p></div><button className="modal-done" onClick={() => setSettingsOpen(false)}>Concluído <Check size={15}/></button></section></div>}
+        {settingsOpen && <div className="modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setSettingsOpen(false); }}><section className="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title"><div className="modal-header"><div><span className="section-eyebrow"><Settings2 size={13}/> PREFERÊNCIAS</span><h2 id="settings-title">Configurações do workspace</h2></div><button className="icon-btn" onClick={() => setSettingsOpen(false)} aria-label="Fechar configurações"><X size={18}/></button></div><div className="setting-row"><div className="setting-icon"><Workflow size={17}/></div><div className="setting-copy"><strong>Webhook do n8n</strong><span>{webhookUrl || 'Nenhuma URL configurada no .env'}</span></div><span className={`setting-state ${webhookUrl ? 'ok' : ''}`}>{webhookUrl ? 'CONFIGURADO' : 'DEMO'}</span></div><div className="setting-row"><div className="setting-icon"><BrainCircuit size={17}/></div><div className="setting-copy"><strong>Modelo de IA</strong><span>Modelo configurado no workflow do n8n</span></div><span className="setting-state">OPENROUTER</span></div><div className="setting-row"><div className="setting-icon"><ShieldCheck size={17}/></div><div className="setting-copy"><strong>Modo de privacidade</strong><span>O frontend não salva conversas no servidor por padrão.</span></div><span className="setting-state ok">ATIVO</span></div><div className="modal-note"><CircleHelp size={16}/><p>Para conectar o agente, configure <code>VITE_N8N_WEBHOOK_URL</code> no arquivo <code>.env</code>, reinicie o frontend e configure o CORS no n8n para permitir a origem do frontend local.</p></div><button className="modal-done" onClick={() => setSettingsOpen(false)}>Concluído <Check size={15}/></button></section></div>}
       </div>
     </div>
   );
