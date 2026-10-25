@@ -126,7 +126,12 @@ function App() {
           response = await fetch(webhookUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Accept': 'text/plain, application/json' },
-            body: JSON.stringify({ message: clean, chatInput: clean, source: 'orbit-frontend' }),
+            body: JSON.stringify({ 
+              message: clean,
+              chatInput: clean,
+              source: 'orbit-frontend',
+              sessionId: 'session-' + Date.now(),
+              }),
             signal: controller.signal
           });
           if (!response.ok) {
